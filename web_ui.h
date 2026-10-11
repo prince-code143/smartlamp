@@ -1,0 +1,772 @@
+// =====================================================================
+//  web_ui.h  -  Smart Lamp control panel (HTML + CSS + JS, ek hi page)
+//  Internet ki zaroorat nahi: sab kuch isi file me hai (no CDN, no fonts).
+//  Badlav karna ho to seedha yahan HTML edit karo aur dobara upload karo.
+// =====================================================================
+#pragma once
+#include <pgmspace.h>
+
+const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#120f0c">
+<title>Smart Lamp</title>
+<style>
+:root{
+  --bg:#110e0b;--bg2:#17130f;--card:#1d1814;--card2:#26201a;--line:#332b23;
+  --text:#f5eee5;--muted:#a99d8d;--dim:#75695b;
+  --amber:#ffb547;--amber2:#ff8740;--glow:255,176,72;
+  --ok:#5bd28a;--bad:#ff6b5b;--info:#6cb6ff;
+  --r:20px;--shadow:0 10px 30px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#f7f2eb;--bg2:#efe8de;--card:#fffdf9;--card2:#f4ede3;--line:#e5dacb;
+    --text:#2a2119;--muted:#7d6f5f;--dim:#a89a88;
+    --amber:#f29b1d;--amber2:#e76a1c;--glow:242,155,29;
+    --ok:#219a57;--bad:#d9412f;--info:#2d7fd3;
+    --shadow:0 8px 24px rgba(80,55,20,.10);color-scheme:light;
+  }
+}
+:root[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;min-height:100vh;
+  padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+button,input,select{font:inherit;color:inherit}
+svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- header ---------- */
+.top{position:sticky;top:0;z-index:20;background:var(--bg);background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1080px;margin:auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.logo{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(140deg,var(--amber),var(--amber2));color:#2a1700;box-shadow:0 0 18px rgba(var(--glow),.35)}
+.logo svg{width:20px;height:20px}
+.brand h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+.dot.on{background:var(--ok);box-shadow:0 0 0 0 rgba(91,210,138,.6);animation:pulse 2s infinite}
+.dot.off{background:var(--bad)}
+@keyframes pulse{70%{box-shadow:0 0 0 7px rgba(91,210,138,0)}100%{box-shadow:0 0 0 0 rgba(91,210,138,0)}}
+.pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:99px;background:var(--card);
+  border:1px solid var(--line);font-size:12px;color:var(--muted);white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.pill svg{width:14px;height:14px}
+.pill.good{color:var(--ok)}.pill.warn{color:var(--amber)}
+.hide-sm{display:none}
+@media(min-width:620px){.hide-sm{display:inline-flex}}
+
+/* ---------- nav ---------- */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--bg2);background:color-mix(in srgb,var(--bg2) 92%,transparent);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);
+  display:flex;justify-content:space-around;padding:6px 6px calc(8px + env(safe-area-inset-bottom))}
+.nav button{flex:1;max-width:120px;background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 0;color:var(--dim);font-size:11px;font-weight:600;border-radius:14px;cursor:pointer}
+.nav button svg{width:22px;height:22px}
+.nav button.act{color:var(--amber)}
+.nav button.act svg{filter:drop-shadow(0 0 6px rgba(var(--glow),.55))}
+@media(min-width:900px){
+  body{padding-bottom:24px}
+  .nav{position:sticky;top:61px;bottom:auto;justify-content:center;gap:6px;border-top:0;border-bottom:1px solid var(--line);padding:8px}
+  .nav button{flex-direction:row;max-width:none;flex:none;padding:8px 18px;font-size:14px;gap:8px}
+  .nav button.act{background:var(--card2)}
+  .nav button svg{width:18px;height:18px}
+}
+
+/* ---------- layout ---------- */
+main{max-width:1080px;margin:auto;padding:16px}
+.tab{display:none;animation:fade .25s ease}
+.tab.act{display:grid;gap:14px}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(min-width:900px){.tab.act{grid-template-columns:1fr 1fr;align-items:start}.span2{grid-column:1/-1}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h2{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px;font-weight:700}
+.card h2 svg{color:var(--amber)}
+.card h2 .badge{margin-left:auto}
+.sub{color:var(--muted);font-size:13px;margin:0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .l{min-width:0}
+.row .l b{display:block;font-weight:600;font-size:14px}
+.row .l span{display:block;color:var(--muted);font-size:12.5px}
+.badge{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.badge.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.badge.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.badge.amb{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 35%,transparent);background:color-mix(in srgb,var(--amber) 12%,transparent)}
+
+/* ---------- hero lamp ---------- */
+.hero{display:grid;justify-items:center;gap:14px;padding:22px 16px 18px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-40%;background:radial-gradient(circle at 50% 38%,rgba(var(--glow),calc(var(--o,0)*.22)),transparent 55%);pointer-events:none;transition:background .4s}
+.orb{--o:0;position:relative;width:210px;height:210px;border-radius:50%;border:0;padding:0;cursor:pointer;background:none;display:grid;place-items:center}
+.orb .halo{position:absolute;inset:-26px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(var(--glow),calc(.15 + var(--o)*.55)) 0%,rgba(var(--glow),calc(var(--o)*.18)) 45%,transparent 70%);
+  transform:scale(calc(.75 + var(--o)*.35));transition:transform .5s,opacity .5s;opacity:calc(.25 + var(--o)*.75)}
+.orb .ring{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:conic-gradient(var(--amber) calc(var(--p,0)*1%),var(--card2) 0);
+  -webkit-mask:radial-gradient(circle,transparent 62%,#000 63%);mask:radial-gradient(circle,transparent 62%,#000 63%);transition:background .3s}
+.orb .core{position:relative;width:150px;height:150px;border-radius:50%;display:grid;place-content:center;text-align:center;
+  background:radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--card2) 80%,rgba(var(--glow),1) 20%),var(--card));
+  box-shadow:inset 0 0 0 1px var(--line),0 0 calc(var(--o)*60px) rgba(var(--glow),calc(var(--o)*.6))}
+.orb .big{font-size:46px;font-weight:800;letter-spacing:-1px;line-height:1}
+.orb .big small{font-size:18px;font-weight:700;color:var(--muted);margin-left:2px}
+.orb .mode{margin-top:6px;font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.orb.lit .mode{color:var(--amber)}
+.orb:active .core{transform:scale(.97)}
+.powerbtn{position:relative;z-index:1;margin-top:8px;display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:99px;border:1px solid var(--line);
+  background:var(--card2);font-weight:700;cursor:pointer;transition:all .2s}
+.powerbtn.on{background:linear-gradient(135deg,var(--amber),var(--amber2));color:#2a1700;border-color:transparent;box-shadow:0 6px 20px rgba(var(--glow),.35)}
+
+/* ---------- slider ---------- */
+.slider{width:100%}
+.slider .lab{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.slider .lab b{font-size:14px}
+.slider .lab span{color:var(--amber);font-weight:800;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:36px;background:none;margin:0;cursor:pointer;touch-action:pan-y}
+input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:99px;
+  background:linear-gradient(90deg,var(--amber2),var(--amber)) 0/var(--p,50%) 100% no-repeat,var(--card2);border:1px solid var(--line)}
+input[type=range]::-moz-range-track{height:12px;border-radius:99px;background:var(--card2);border:1px solid var(--line)}
+input[type=range]::-moz-range-progress{height:12px;border-radius:99px;background:linear-gradient(90deg,var(--amber2),var(--amber))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;margin-top:-9px;
+  background:#fff;border:3px solid var(--amber);box-shadow:0 2px 10px rgba(0,0,0,.35)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--amber)}
+
+/* ---------- chips / switch / buttons ---------- */
+.chips{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%}
+.chips.c5{grid-template-columns:repeat(5,1fr)}
+.chip{border:1px solid var(--line);background:var(--card2);border-radius:14px;padding:10px 4px;cursor:pointer;text-align:center;transition:all .2s}
+.chip b{display:block;font-size:15px}
+.chip span{display:block;font-size:11px;color:var(--muted)}
+.chip.act{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,var(--card2));color:var(--amber)}
+.chip.act span{color:inherit;opacity:.8}
+.sw{position:relative;width:50px;height:30px;flex:none}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw i{position:absolute;inset:0;border-radius:99px;background:var(--card2);border:1px solid var(--line);transition:.25s;cursor:pointer}
+.sw i::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--dim);transition:.25s}
+.sw input:checked+i{background:linear-gradient(135deg,var(--amber),var(--amber2));border-color:transparent}
+.sw input:checked+i::after{transform:translateX(20px);background:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:var(--card2);
+  border-radius:12px;padding:10px 14px;font-weight:650;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn:hover{border-color:var(--dim)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.pri{background:linear-gradient(135deg,var(--amber),var(--amber2));color:#2a1700;border-color:transparent}
+.btn.danger{color:var(--bad)}
+.btn svg{width:17px;height:17px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btns.c3{grid-template-columns:repeat(3,1fr)}
+.btns>.btn{min-width:0}
+.btns.c3 .btn{padding:10px 6px;font-size:13.5px;gap:5px}
+select,.inp{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none}
+select{width:auto;min-width:120px;padding-right:30px;-webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99d8d' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;background-size:16px}
+.inp:focus,select:focus{border-color:var(--amber)}
+.field{display:grid;gap:6px;margin-top:10px}
+.field label{font-size:12.5px;color:var(--muted);font-weight:600}
+.pw{position:relative}
+.pw .inp{padding-right:44px}
+.pw button{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);padding:8px;cursor:pointer}
+
+/* ---------- meters ---------- */
+.meter{position:relative;height:10px;border-radius:99px;background:var(--card2);border:1px solid var(--line);overflow:hidden;margin:8px 0 4px}
+.meter b{position:absolute;top:-1px;bottom:-1px;width:3px;margin-left:-1px;background:var(--text);border-radius:2px;left:50%;transition:left .3s}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3a4a7a,#9fb8ff 40%,var(--amber));transition:width .6s}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.stat{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px;min-width:0}
+.stat span{display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.stat b{display:block;font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.info .stat b{font-size:14px}
+
+/* ---------- guide / touch ---------- */
+.gmap{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.gmap div{display:flex;flex-direction:column;gap:1px;font-size:12.5px;padding:8px 10px;border-radius:12px;background:var(--card2);border:1px solid var(--line);min-width:0}
+.gmap div b{color:var(--amber);font-size:12.5px}
+.gmap div span{color:var(--muted);min-width:0}
+.touchviz{display:flex;align-items:center;gap:12px}
+.tpad{width:46px;height:46px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:var(--dim);transition:all .15s}
+.tpad.on{border-color:var(--amber);color:var(--amber);box-shadow:0 0 18px rgba(var(--glow),.5);background:color-mix(in srgb,var(--amber) 12%,transparent)}
+
+/* ---------- wifi ---------- */
+.netlist{display:grid;gap:6px;margin-top:10px}
+.net{border:1px solid var(--line);border-radius:14px;background:var(--card2);overflow:hidden}
+.net .hd{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer}
+.net .hd b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.net .hd .lk{color:var(--muted)}
+.net .hd .lk svg{width:15px;height:15px}
+.net .bd{display:none;padding:0 12px 12px;gap:8px}
+.net.open{border-color:var(--amber)}
+.net.open .bd{display:grid}
+.net.cur .hd b::after{content:" · connected";color:var(--ok);font-weight:600;font-size:12px}
+.bars{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+.bars i{width:4px;border-radius:1px;background:var(--line)}
+.bars i:nth-child(1){height:4px}.bars i:nth-child(2){height:7px}.bars i:nth-child(3){height:10px}.bars i:nth-child(4){height:14px}
+.bars.s1 i:nth-child(-n+1),.bars.s2 i:nth-child(-n+2),.bars.s3 i:nth-child(-n+3),.bars.s4 i:nth-child(-n+4){background:var(--amber)}
+.conn{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;background:var(--card2);border:1px solid var(--line)}
+.conn .ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--card);border:1px solid var(--line)}
+.conn .ic.ok{color:var(--ok)}.conn .ic.bad{color:var(--bad)}.conn .ic.amb{color:var(--amber)}
+.conn .tx{flex:1;min-width:0}
+.conn .tx b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conn .tx span{display:block;font-size:12.5px;color:var(--muted)}
+.spin{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--amber);animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.notice{margin-top:10px;padding:10px 12px;border-radius:12px;font-size:13px;display:none;background:var(--card2)}
+.notice.show{display:block}
+.notice.ok{background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok)}
+.notice.bad{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad)}
+.notice.amb{background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber)}
+.notice a{color:inherit;font-weight:700}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:14px}
+
+/* ---------- log ---------- */
+.log{display:grid;gap:2px;max-height:340px;overflow:auto;margin:0 -4px;padding:0 4px}
+.log div{display:flex;gap:10px;font-size:13px;padding:7px 2px;border-bottom:1px dashed var(--line)}
+.log div:last-child{border-bottom:0}
+.log time{color:var(--dim);min-width:46px;font-variant-numeric:tabular-nums}
+
+/* ---------- banners / toast / sheet ---------- */
+.banner{display:none;max-width:1080px;margin:12px auto 0;padding:0 16px}
+.banner.show{display:block}
+.banner div{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--card);background:color-mix(in srgb,var(--bad) 14%,var(--card));
+  border:1px solid color-mix(in srgb,var(--bad) 35%,transparent);color:var(--text);font-size:13.5px}
+.banner svg{color:var(--bad)}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;z-index:60;
+  background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:13.5px;transition:all .3s;
+  max-width:calc(100vw - 32px);box-shadow:var(--shadow);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--bad);color:#fff}
+@media(min-width:900px){.toast{bottom:24px}}
+.sheet{position:fixed;inset:0;z-index:70;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5)}
+.sheet.show{display:flex}
+.sheet .box{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:22px 22px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));animation:up .25s ease}
+@media(min-width:600px){.sheet{align-items:center}.sheet .box{border-radius:22px}}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.sheet h3{margin:0 0 6px;font-size:17px}
+.sheet p{margin:0 0 16px;color:var(--muted);font-size:14px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+.hint{font-size:12px;color:var(--dim);margin-top:8px}
+a{color:var(--amber)}
+</style>
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M5 12.6a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="20" r="1"/></symbol>
+  <symbol id="i-wifioff" viewBox="0 0 24 24"><path d="m2 2 20 20M8.5 16.1a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 5.2-2.8M19 12.6a10 10 0 0 0-2.3-1.7M2 8.8a15 15 0 0 1 4.2-2.8M10.7 5.1A15 15 0 0 1 22 8.8"/><circle cx="12" cy="20" r="1"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-touch" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7a5 5 0 1 0 5 5"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-hotspot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></symbol>
+  <symbol id="i-zz" viewBox="0 0 24 24"><path d="M4 6h6l-6 8h6M14 4h6l-6 8h6"/></symbol>
+  <symbol id="i-batt" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4"/></symbol>
+</svg>
+
+<header class="top"><div class="in">
+  <div class="brand">
+    <div class="logo"><svg><use href="#i-bulb"/></svg></div>
+    <div style="min-width:0">
+      <h1 id="title">Smart Lamp</h1>
+      <small><span class="dot" id="live"></span><span id="liveTxt">Connecting…</span></small>
+    </div>
+  </div>
+  <div class="pills">
+    <span class="pill" id="pBat" style="display:none"><svg><use href="#i-batt"/></svg><span></span></span>
+    <span class="pill" id="pWifi"><svg><use href="#i-hotspot"/></svg><span>Hotspot</span></span>
+    <span class="pill hide-sm" id="pNet"><svg><use href="#i-globe"/></svg><span>No internet</span></span>
+    <span class="pill hide-sm" id="pTime" style="display:none"></span>
+  </div>
+</div></header>
+
+<nav class="nav" id="nav">
+  <button data-t="lamp" class="act"><svg><use href="#i-bulb"/></svg>Lamp</button>
+  <button data-t="sensors"><svg><use href="#i-touch"/></svg>Sensors</button>
+  <button data-t="wifi"><svg><use href="#i-wifi"/></svg>Wi-Fi</button>
+  <button data-t="system"><svg><use href="#i-gear"/></svg>System</button>
+</nav>
+
+<div class="banner" id="offline"><div><svg><use href="#i-alert"/></svg><span id="offTxt">Can't reach the lamp. If it is in deep sleep, touch the pad once to wake it.</span></div></div>
+
+<main>
+<!-- ======================= LAMP ======================= -->
+<section class="tab act" id="t-lamp">
+  <div class="card hero">
+    <button class="orb" id="orb" aria-label="Toggle lamp">
+      <div class="halo"></div><div class="ring"></div>
+      <div class="core"><div class="big"><span id="pctBig">0</span><small>%</small></div><div class="mode" id="modeTxt">Off</div></div>
+    </button>
+    <button class="powerbtn" id="powerBtn"><svg><use href="#i-power"/></svg><span>Turn on</span></button>
+    <div class="slider">
+      <div class="lab"><b>Brightness</b><span id="lvlTxt">0%</span></div>
+      <input type="range" id="lvl" min="20" max="100" step="1" value="65">
+    </div>
+    <div class="chips" id="presets">
+      <button class="chip" data-p="1"><b>25%</b><span>1 touch</span></button>
+      <button class="chip" data-p="2"><b>60%</b><span>2 touches</span></button>
+      <button class="chip" data-p="3"><b>100%</b><span>3 touches</span></button>
+      <button class="chip" data-p="night"><b><svg style="width:16px;height:16px;vertical-align:-3px"><use href="#i-moon"/></svg></b><span>Night</span></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-sun"/></svg>Auto brightness<span class="badge" id="autoBadge">Off</span></h2>
+    <div class="row">
+      <div class="l"><b>Auto brightness (LDR)</b><span>Touch: long press (1–5 s) = on / off</span></div>
+      <label class="sw"><input type="checkbox" id="autoSw"><i></i></label>
+    </div>
+    <div class="row" style="display:block">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span class="sub">Light at sensor</span><b id="ambTxt">0%</b></div>
+      <div class="meter"><i id="ambBar"></i><b id="tMark1"></b></div>
+      <p class="hint" id="autoHint">The lamp brightens or dims itself to keep the light at the sensor on target (white mark).</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-zz"/></svg>Sleep<span class="badge" id="timerBadge">Off</span></h2>
+    <p class="sub" style="margin-bottom:12px">Turn the lamp off automatically after:</p>
+    <div class="chips c5" id="timers">
+      <button class="chip" data-m="0"><b>Off</b><span>&nbsp;</span></button>
+      <button class="chip" data-m="15"><b>15</b><span>min</span></button>
+      <button class="chip" data-m="30"><b>30</b><span>min</span></button>
+      <button class="chip" data-m="60"><b>1</b><span>hour</span></button>
+      <button class="chip" data-m="120"><b>2</b><span>hours</span></button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="l"><b>Deep sleep when timer ends</b><span>Fades out slowly, then Wi-Fi turns off too</span></div>
+      <label class="sw"><input type="checkbox" id="tSleep"><i></i></label>
+    </div>
+    <div class="row">
+      <div class="l"><b>Auto sleep</b><span id="idleSub">Lamp off, no touch, this page closed</span></div>
+      <select id="sIdle"><option value="0">Never</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select>
+    </div>
+    <button class="btn" id="sleepNow" style="width:100%;margin-top:8px"><svg><use href="#i-zz"/></svg>Deep sleep now</button>
+    <p class="hint">Asleep: touch the pad once to wake it. The light stays off; the next touch turns it on.</p>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-touch"/></svg>Quick guide</h2>
+    <div class="gmap" style="margin-top:0">
+      <div><b>1 touch</b><span>25% on · touch again = off</span></div>
+      <div><b>2 touches</b><span>60%</span></div>
+      <div><b>3 touches</b><span>100%</span></div>
+      <div><b>Long press (1–5 s)</b><span>LDR auto on (2 blinks) / off (1 blink)</span></div>
+      <div><b>Asleep: 1 touch</b><span>Wakes up (2 soft blinks), light stays off</span></div>
+      <div><b>Deep sleep</b><span>From this page only</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= SENSORS ======================= -->
+<section class="tab" id="t-sensors">
+  <div class="card">
+    <h2><svg><use href="#i-sun"/></svg>Auto brightness (LDR)<span class="badge" id="autoBadge2">Off</span></h2>
+    <div class="row">
+      <div class="l"><b>Auto mode</b><span>Dark → lamp brighter, bright → lamp dimmer</span></div>
+      <label class="sw"><input type="checkbox" id="autoSw2"><i></i></label>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>Light</span><b id="sAmb">0%</b></div>
+      <div class="stat"><span>Target</span><b id="sTgt">50%</b></div>
+      <div class="stat"><span>Lamp</span><b id="sAuto">0%</b></div>
+    </div>
+    <div class="meter"><i id="ambBar2"></i><b id="tMark2"></b></div>
+    <p class="hint" id="autoState">Turn auto mode on to start.</p>
+    <div class="slider" style="margin-top:10px">
+      <div class="lab"><b>Target light</b><span id="aTgtTxt">50%</span></div>
+      <input type="range" id="aTgt" min="5" max="95" value="50">
+    </div>
+    <div class="slider">
+      <div class="lab"><b>Lamp minimum</b><span id="aMinTxt">20%</span></div>
+      <input type="range" id="aMin" min="20" max="100" value="20">
+    </div>
+    <div class="slider">
+      <div class="lab"><b>Lamp maximum</b><span id="aMaxTxt">100%</span></div>
+      <input type="range" id="aMax" min="20" max="100" value="100">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-eye"/></svg>LDR calibration</h2>
+    <p class="sub">Cover the LDR (or darken the room) and press <b>Set dark</b>. Then shine a light on it and press <b>Set bright</b>. With an LDR module the raw value goes <b>up</b> in the dark; that is normal.</p>
+    <div class="stats" style="grid-template-columns:1fr;margin-bottom:-2px"><div class="stat"><span>Raw reading now</span><b id="sRaw">0</b></div></div>
+    <div class="stats" style="grid-template-columns:1fr 1fr">
+      <div class="stat"><span>Dark point</span><b id="cDark">-</b></div>
+      <div class="stat"><span>Bright point</span><b id="cBright">-</b></div>
+    </div>
+    <div class="btns c3" style="margin-top:12px">
+      <button class="btn" id="calDark"><svg><use href="#i-moon"/></svg>Set dark</button>
+      <button class="btn" id="calBright"><svg><use href="#i-sun"/></svg>Set bright</button>
+      <button class="btn" id="calReset"><svg><use href="#i-refresh"/></svg>Reset</button>
+    </div>
+    <p class="hint">The LDR should face the room or desk, not the LED strip directly. If it sees the strip too strongly the lamp stays dim; raise Target light or move the LDR.</p>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-touch"/></svg>Touch pad (TTP223)</h2>
+    <div class="touchviz">
+      <div class="tpad" id="tpad"><svg><use href="#i-touch"/></svg></div>
+      <div><b id="tState">Released</b><div class="sub">Live touch state</div></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="l"><b>Tap speed</b><span>Max gap between taps</span></div>
+      <select id="tapwin"><option value="300">Fast</option><option value="400">Normal</option><option value="550">Relaxed</option><option value="700">Slow</option></select>
+    </div>
+    <div class="gmap">
+      <div><b>1 touch</b><span>Off → 25% · On → off</span></div>
+      <div><b>2 touches</b><span>60%</span></div>
+      <div><b>3 touches</b><span>100%</span></div>
+      <div><b>Long press (1–5 s)</b><span>LDR auto on / off</span></div>
+      <div><b>Asleep: 1 touch</b><span>Wake only (light stays off)</span></div>
+      <div><b>Deep sleep</b><span>From this page only</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= WIFI ======================= -->
+<section class="tab" id="t-wifi">
+  <div class="card">
+    <h2><svg><use href="#i-wifi"/></svg>Internet connection</h2>
+    <div class="conn">
+      <div class="ic" id="cIc"><svg><use href="#i-wifioff"/></svg></div>
+      <div class="tx"><b id="cName">Not connected</b><span id="cSub">Connect the lamp to your home Wi-Fi below</span></div>
+      <span class="bars" id="cBars"><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div class="stats" id="cStats" style="display:none">
+      <div class="stat"><span>IP address</span><b id="cIp">-</b></div>
+      <div class="stat"><span>Signal</span><b id="cRssi">-</b></div>
+      <div class="stat"><span>Internet</span><b id="cNet">-</b></div>
+    </div>
+    <div class="notice" id="cNotice"></div>
+    <div class="btns" style="margin-top:12px" id="cBtns">
+      <button class="btn" id="openLocal"><svg><use href="#i-globe"/></svg><span>Open .local</span></button>
+      <button class="btn danger" id="forget"><svg><use href="#i-wifioff"/></svg>Forget Wi-Fi</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-refresh"/></svg>Connect to a network</h2>
+    <button class="btn pri" id="scanBtn" style="width:100%"><svg><use href="#i-refresh"/></svg><span>Scan for Wi-Fi networks</span></button>
+    <div class="netlist" id="netList"></div>
+    <div class="net" id="manualNet" style="margin-top:6px">
+      <div class="hd"><svg><use href="#i-lock"/></svg><b>Other / hidden network…</b></div>
+      <div class="bd">
+        <input class="inp" id="mSsid" placeholder="Network name (SSID)" maxlength="32" autocomplete="off" autocapitalize="off">
+        <div class="pw"><input class="inp" id="mPass" type="password" placeholder="Password" maxlength="64" autocomplete="off"><button type="button" class="eye"><svg><use href="#i-eye"/></svg></button></div>
+        <button class="btn pri" id="mGo">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-hotspot"/></svg>Lamp hotspot<span class="badge" id="apCl">0 devices</span></h2>
+    <p class="sub">The lamp's own Wi-Fi is always on, so you can control it even without a router. Open <b id="apIp">192.168.4.1</b> after joining it.</p>
+    <div class="field"><label>Hotspot name</label><input class="inp" id="apSsid" maxlength="32" autocomplete="off"></div>
+    <div class="field"><label>Hotspot password (8+ characters, empty = open)</label>
+      <div class="pw"><input class="inp" id="apPass" type="password" maxlength="63" placeholder="unchanged" autocomplete="new-password"><button type="button" class="eye"><svg><use href="#i-eye"/></svg></button></div>
+    </div>
+    <button class="btn" id="apSave" style="margin-top:12px;width:100%">Save hotspot &amp; restart</button>
+  </div>
+</section>
+
+<!-- ======================= SYSTEM ======================= -->
+<section class="tab" id="t-system">
+  <div class="card">
+    <h2><svg><use href="#i-gear"/></svg>Behaviour</h2>
+    <div class="row">
+      <div class="l"><b>Blink feedback</b><span>Blink on wake and LDR auto on/off</span></div>
+      <label class="sw"><input type="checkbox" id="sBlink"><i></i></label>
+    </div>
+    <div class="row">
+      <div class="l"><b>Fade speed</b><span>On / off transition</span></div>
+      <select id="sFade"><option value="300">Fast</option><option value="800">Smooth</option><option value="1500">Slow</option><option value="3000">Very slow</option></select>
+    </div>
+    <div class="field"><label>Device name (for http://name.local, applies after restart)</label>
+      <div style="display:flex;gap:8px"><input class="inp" id="sHost" maxlength="23" autocomplete="off" autocapitalize="off"><button class="btn" id="hostSave">Save</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><svg><use href="#i-chip"/></svg>Device</h2>
+    <div class="info">
+      <div class="stat"><span>Uptime</span><b id="iUp">-</b></div>
+      <div class="stat"><span>Free memory</span><b id="iHeap">-</b></div>
+      <div class="stat"><span>Last wake</span><b id="iWake">-</b></div>
+      <div class="stat"><span>Firmware</span><b id="iFw">-</b></div>
+      <div class="stat"><span>Chip</span><b id="iChip">-</b></div>
+      <div class="stat"><span>Battery</span><b id="iBat">-</b></div>
+      <div class="stat" style="grid-column:1/-1"><span>MAC address</span><b id="iMac" class="mono">-</b></div>
+    </div>
+    <div class="btns" style="margin-top:12px">
+      <button class="btn" id="aIdent"><svg><use href="#i-bulb"/></svg>Blink test</button>
+      <button class="btn pri" id="aSleep"><svg><use href="#i-zz"/></svg>Deep sleep</button>
+      <button class="btn" id="aRestart"><svg><use href="#i-refresh"/></svg>Restart</button>
+      <button class="btn danger" id="aFactory"><svg><use href="#i-alert"/></svg>Factory reset</button>
+    </div>
+  </div>
+
+  <div class="card span2">
+    <h2><svg><use href="#i-list"/></svg>Activity log</h2>
+    <div class="log" id="log"><div class="empty">No activity yet</div></div>
+  </div>
+</section>
+</main>
+
+<div class="toast" id="toast"></div>
+<div class="sheet" id="sheet"><div class="box">
+  <h3 id="shT"></h3><p id="shM"></p>
+  <div class="btns"><button class="btn" id="shNo">Cancel</button><button class="btn pri" id="shYes">OK</button></div>
+</div></div>
+
+<script>
+(()=>{
+const $=s=>document.getElementById(s);
+const Q=(s,r=document)=>[...r.querySelectorAll(s)];
+let S=null,online=null,sleeping=false,fails=0,pollT=null,holdLvl=0,holdAuto=0,scanT=null,openNet=null,tryWatch=false,lastLogTop='';
+
+/* ---------- api ---------- */
+async function api(path,params){
+  const o={cache:'no-store'};
+  if(params){o.method='POST';o.headers={'Content-Type':'application/x-www-form-urlencoded'};o.body=new URLSearchParams(params).toString()}
+  const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),6000);o.signal=ctl.signal;
+  try{
+    const r=await fetch(path,o);let j={};try{j=await r.json()}catch(e){}
+    if(!r.ok)throw new Error(j.error||('Error '+r.status));
+    return j;
+  }finally{clearTimeout(tm)}
+}
+async function cmd(path,params,ok){
+  try{const j=await api(path,params);if(j&&j.lamp)render(j);if(ok)toast(ok);return j}
+  catch(e){toast(e.name==='AbortError'?'Lamp not responding':e.message,true)}
+}
+function schedule(ms){clearTimeout(pollT);pollT=setTimeout(poll,ms)}
+async function poll(){
+  if(document.hidden){schedule(2000);return}
+  try{const j=await api('/api/state');fails=0;setOnline(true);render(j)}
+  catch(e){if(++fails>=2)setOnline(false)}
+  schedule(online===false?3000:1000);
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
+
+/* ---------- ui helpers ---------- */
+let toastT;
+function toast(m,bad){const t=$('toast');t.textContent=m;t.className='toast show'+(bad?' bad':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast'+(bad?' bad':''),2600)}
+function ask(title,msg,yes){return new Promise(res=>{$('shT').textContent=title;$('shM').textContent=msg;$('shYes').textContent=yes||'OK';$('sheet').classList.add('show');
+  const done=v=>{$('sheet').classList.remove('show');$('shYes').onclick=$('shNo').onclick=null;res(v)};$('shYes').onclick=()=>done(true);$('shNo').onclick=()=>done(false)})}
+$('sheet').addEventListener('click',e=>{if(e.target.id==='sheet')$('shNo').click()});
+function setOnline(v){
+  if(online===v)return;online=v;
+  $('live').className='dot '+(v?'on':'off');$('liveTxt').textContent=v?'Online':'Offline';
+  $('offline').classList.toggle('show',!v);
+  $('offTxt').textContent=sleeping?'The lamp is in deep sleep. Touch the pad once to wake it (the light stays off), then reconnect to it and reopen this page.':"Can't reach the lamp. If it is in deep sleep, touch the pad once to wake it.";
+  if(v)sleeping=false;
+}
+const fmtAgo=s=>s<60?s+'s':s<3600?Math.floor(s/60)+'m':Math.floor(s/3600)+'h';
+const fmtDur=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return h?`${h}h ${m}m`:m?`${m}m ${String(x).padStart(2,'0')}s`:`${x}s`};
+const fmtClock=s=>{const m=Math.floor(s/60),x=s%60;return m>=60?`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}:${String(x).padStart(2,'0')}`:`${m}:${String(x).padStart(2,'0')}`};
+const bars=r=>r>=-55?4:r>=-65?3:r>=-75?2:r<0?1:0;
+const BT=[[3300,0],[3500,8],[3600,18],[3700,38],[3750,50],[3800,60],[3900,75],[4000,86],[4100,95],[4180,100]];
+const batPct=mv=>{if(mv<=BT[0][0])return 0;for(let i=1;i<BT.length;i++)if(mv<=BT[i][0]){const[a,pa]=BT[i-1],[b,pb]=BT[i];return Math.round(pa+(pb-pa)*(mv-a)/(b-a))}return 100};
+const fmtMin=m=>m>=60?(m/60)+' h':m+' min';
+const setRange=(el,v)=>{el.value=v;el.style.setProperty('--p',((v-el.min)/(el.max-el.min)*100)+'%')};
+const setChk=(id,v)=>{const e=$(id);if(document.activeElement!==e)e.checked=!!v};
+const setSel=(id,v)=>{const e=$(id);if(document.activeElement===e)return;const s=String(v);if(![...e.options].some(o=>o.value===s)){const o=document.createElement('option');o.value=s;o.textContent=s;e.appendChild(o)}e.value=s};
+const setTxt=(id,v)=>{const e=$(id);if(e.textContent!==String(v))e.textContent=v};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- render ---------- */
+function render(j){
+  S=j;const L=j.lamp,W=j.wifi,C=j.cfg,Y=j.sys,D=j.ldr,now=Date.now();
+  /* hero */
+  const out=L.out/100,shown=L.on?(L.auto?L.autoLevel:L.level):0;
+  const orb=$('orb');orb.style.setProperty('--o',out.toFixed(3));orb.style.setProperty('--p',L.on?shown:0);
+  orb.parentElement.style.setProperty('--o',out.toFixed(3));
+  orb.classList.toggle('lit',L.on);
+  setTxt('pctBig',shown);setTxt('modeTxt',L.on?(L.auto?'Auto':'On'):'Off');
+  const pb=$('powerBtn');pb.classList.toggle('on',L.on);pb.querySelector('span').textContent=L.on?'Turn off':'Turn on';
+  if(now>holdLvl){setRange($('lvl'),L.auto?L.autoLevel:L.level);setTxt('lvlTxt',(L.auto?L.autoLevel:L.level)+'%'+(L.auto?' · auto':''))}
+  Q('#presets .chip').forEach(c=>{const p=c.dataset.p,v={1:25,2:60,3:100,night:20}[p];c.classList.toggle('act',L.on&&!L.auto&&L.level===v)});
+  /* auto */
+  if(now>holdAuto){setChk('autoSw',L.auto);setChk('autoSw2',L.auto)}
+  ['autoBadge','autoBadge2'].forEach(id=>{const b=$(id);b.textContent=L.auto?'On':'Off';b.className='badge'+(L.auto?' amb':'')});
+  setTxt('ambTxt',D.amb+'%');$('ambBar').style.width=D.amb+'%';$('ambBar2').style.width=D.amb+'%';
+  $('tMark1').style.left=D.target+'%';$('tMark2').style.left=D.target+'%';
+  const d=D.amb-D.target,st=!L.auto?'Auto mode is off.':!L.on?'Lamp is off.':Math.abs(d)<=4?'On target, lamp holding steady.':d<0?(L.autoLevel>=D.max?'Too dark, lamp at its maximum.':'Too dark, brightening…'):(L.autoLevel<=D.min?'Bright enough, lamp at its minimum.':'Too bright, dimming…');
+  setTxt('autoHint',L.auto?`Light ${D.amb}% · target ${D.target}% · lamp ${L.autoLevel}% · ${st}`:'The lamp brightens or dims itself to keep the light at the sensor on target (white mark).');
+  setTxt('autoState',st);
+  setTxt('sAmb',D.amb+'%');setTxt('sTgt',D.target+'%');setTxt('sRaw',D.raw);setTxt('sAuto',L.autoLevel+'%');
+  if(document.activeElement!==$('aTgt')){setRange($('aTgt'),D.target);setTxt('aTgtTxt',D.target+'%')}
+  if(document.activeElement!==$('aMax')){setRange($('aMax'),D.max);setTxt('aMaxTxt',D.max+'%')}
+  if(document.activeElement!==$('aMin')){setRange($('aMin'),D.min);setTxt('aMinTxt',D.min+'%')}
+  setTxt('cDark',D.dark);setTxt('cBright',D.bright);
+  /* timer */
+  const tb=$('timerBadge');
+  if(L.timer>0){tb.textContent=(C.tsleep?'Sleeps in ':'Off in ')+fmtClock(L.timer);tb.className='badge amb'}else{tb.textContent='Off';tb.className='badge'}
+  Q('#timers .chip').forEach(c=>c.classList.toggle('act',c.dataset.m==='0'?L.timer===0:false));
+  /* touch */
+  $('tpad').classList.toggle('on',!!j.touch.held);setTxt('tState',j.touch.held?'Touching':'Released');
+  setSel('tapwin',C.tapwin);
+  /* system settings */
+  setChk('sBlink',C.blink);setChk('tSleep',C.tsleep);setSel('sFade',C.fade);setSel('sIdle',C.idle);
+  if(document.activeElement!==$('sHost'))$('sHost').value=C.host;
+  setTxt('idleSub',!C.idle?'Off: sleeps only when you tell it to':L.on?'Starts '+fmtMin(C.idle)+' after the lamp is off':'Sleeps '+fmtMin(C.idle)+' after you close this page');
+  const pB=$('pBat'),iB=$('iBat');
+  if(Y.bat>0){const p=batPct(Y.bat);pB.style.display='';pB.className='pill'+(Y.batLow?' warn':' good');pB.querySelector('span').textContent=p+'%';
+    setTxt('iBat',(Y.bat/1000).toFixed(2)+' V · ~'+p+'%');iB.style.color=Y.batLow?'var(--bad)':''}
+  else{pB.style.display='none';setTxt('iBat','Not wired');iB.style.color=''}
+  setTxt('iUp',fmtDur(Y.up));setTxt('iHeap',Math.round(Y.heap/1024)+' KB');setTxt('iWake',Y.wake);setTxt('iFw','v'+Y.fw);setTxt('iChip',Y.chip);setTxt('iMac',Y.mac);
+  /* header */
+  setTxt('title',!C.host||C.host==='smartlamp'?'Smart Lamp':C.host.charAt(0).toUpperCase()+C.host.slice(1).replace(/-/g,' '));
+  const pw=$('pWifi');
+  if(W.st==='connected'){pw.className='pill good';pw.innerHTML='<svg><use href="#i-wifi"/></svg><span>'+esc(W.ssid)+'</span>'}
+  else if(W.st==='connecting'){pw.className='pill warn';pw.innerHTML='<svg><use href="#i-wifi"/></svg><span>Connecting…</span>'}
+  else{pw.className='pill';pw.innerHTML='<svg><use href="#i-hotspot"/></svg><span>Hotspot only</span>'}
+  const pn=$('pNet');pn.className='pill hide-sm'+(W.net?' good':'');pn.querySelector('span').textContent=W.net?'Internet':'No internet';
+  const pt=$('pTime');if(Y.time){pt.style.display='';pt.textContent=Y.time}else pt.style.display='none';
+  renderWifi(W);
+  renderLog(j.log);
+}
+function renderWifi(W){
+  const ic=$('cIc'),con=W.st==='connected';
+  ic.className='ic '+(con?'ok':W.st==='connecting'?'amb':'bad');
+  ic.innerHTML='<svg><use href="#'+(con?'i-wifi':'i-wifioff')+'"/></svg>';
+  setTxt('cName',con?W.ssid:W.st==='connecting'?'Connecting to '+(W.trySsid||W.saved)+'…':W.saved?W.saved+' (not connected)':'Not connected');
+  setTxt('cSub',con?(W.net?'Online · open http://'+S.cfg.host+'.local':'Connected, but no internet'):W.st==='waiting'?'Will retry automatically…':W.saved?'Trying to reach saved network':'Connect the lamp to your home Wi-Fi below');
+  $('cBars').className='bars s'+(con?bars(W.rssi):0);
+  $('cStats').style.display=con?'grid':'none';
+  if(con){setTxt('cIp',W.ip);setTxt('cRssi',W.rssi+' dBm');const n=$('cNet');n.textContent=W.net?'Online':'No';n.style.color=W.net?'var(--ok)':'var(--bad)'}
+  $('cBtns').style.display=W.saved?'grid':'none';$('openLocal').style.display=con?'':'none';
+  setTxt('apCl',W.apcl+(W.apcl===1?' device':' devices'));setTxt('apIp',W.apip);
+  if(document.activeElement!==$('apSsid')&&!$('apSsid').dataset.dirty)$('apSsid').value=W.ap;
+  $('apPass').placeholder=W.apOpen?'(open network)':'unchanged';
+  /* connect attempt feedback */
+  const n=$('cNotice');
+  if(tryWatch){
+    if(W.try===1){n.className='notice show amb';n.innerHTML='Connecting to <b>'+esc(W.trySsid)+'</b>… this can take up to 20 seconds. Your phone may drop off the lamp hotspot for a moment while the lamp switches channel; it reconnects by itself.'}
+    else if(W.try===2){n.className='notice show ok';n.innerHTML='Connected to <b>'+esc(W.ssid||W.trySsid)+'</b>! On that network open <a href="http://'+esc(W.ip)+'">http://'+esc(W.ip)+'</a> or <b>http://'+esc(S.cfg.host)+'.local</b>';tryWatch=false;toast('Wi-Fi connected');Q('.net.open').forEach(x=>x.classList.remove('open'))}
+    else if(W.try===3){n.className='notice show bad';n.innerHTML='Could not connect to <b>'+esc(W.trySsid)+'</b>: '+esc(W.err||'failed')+'. Check the password and try again.';tryWatch=false}
+  }
+  Q('#netList .net').forEach(x=>x.classList.toggle('cur',con&&x.dataset.ssid===W.ssid));
+}
+function renderLog(list){
+  const top=list.length?list[0][1]+list.length:'';
+  const box=$('log');
+  if(!list.length){if(lastLogTop!==''){box.innerHTML='<div class="empty">No activity yet</div>';lastLogTop=''}return}
+  box.innerHTML=list.map(([a,m])=>'<div><time>'+fmtAgo(a)+'</time><span>'+esc(m)+'</span></div>').join('');lastLogTop=top;
+}
+
+/* ---------- tabs ---------- */
+function showTab(t){Q('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.t===t));Q('.tab').forEach(s=>s.classList.toggle('act',s.id==='t-'+t));
+  try{localStorage.setItem('lampTab',t)}catch(e){}window.scrollTo({top:0,behavior:'smooth'})}
+Q('#nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+try{const t=localStorage.getItem('lampTab');if(t&&$('t-'+t))showTab(t)}catch(e){}
+
+/* ---------- lamp controls ---------- */
+const toggle=()=>cmd('/api/lamp',{on:'toggle'});
+$('orb').onclick=toggle;$('powerBtn').onclick=toggle;
+let lvlT=0,lvlPending=null;
+function sendLvl(){if(lvlPending===null)return;const v=lvlPending;lvlPending=null;lvlT=Date.now();api('/api/lamp',{level:v}).catch(()=>{})}
+$('lvl').addEventListener('input',e=>{const v=+e.target.value;setRange(e.target,v);setTxt('lvlTxt',v+'%');holdLvl=Date.now()+1500;
+  holdAuto=Date.now()+1500;$('autoSw').checked=$('autoSw2').checked=false;
+  lvlPending=v;if(Date.now()-lvlT>140)sendLvl();else setTimeout(sendLvl,150)});
+$('lvl').addEventListener('change',e=>{const v=+e.target.value;lvlPending=null;holdLvl=Date.now()+1200;cmd('/api/lamp',{level:v,final:1})});
+Q('#presets .chip').forEach(c=>c.onclick=()=>cmd('/api/lamp',{preset:c.dataset.p}));
+function autoTo(on){holdAuto=Date.now()+1500;$('autoSw').checked=$('autoSw2').checked=on;cmd('/api/auto',{on:on?1:0},on?'Auto brightness on':'Auto brightness off')}
+$('autoSw').onchange=e=>autoTo(e.target.checked);$('autoSw2').onchange=e=>autoTo(e.target.checked);
+Q('#timers .chip').forEach(c=>c.onclick=()=>{const m=+c.dataset.m;cmd('/api/timer',{min:m},m?(S&&S.cfg.tsleep?'Lamp sleeps in ':'Lamp turns off in ')+fmtMin(m):'Timer cancelled')});
+$('tSleep').onchange=e=>cmd('/api/settings',{tsleep:e.target.checked?1:0},e.target.checked?'Deep sleep after timer: on':'Deep sleep after timer: off');
+
+/* ---------- sensors ---------- */
+['aMin','aMax','aTgt'].forEach(id=>{const e=$(id);
+  e.addEventListener('input',()=>{setRange(e,+e.value);setTxt(id+'Txt',e.value+'%')});
+  e.addEventListener('change',()=>cmd('/api/auto',{[{aMin:'min',aMax:'max',aTgt:'target'}[id]]:e.value}))});
+$('calDark').onclick=()=>cmd('/api/ldr',{cal:'dark'},'Dark point saved');
+$('calBright').onclick=()=>cmd('/api/ldr',{cal:'bright'},'Bright point saved');
+$('calReset').onclick=async()=>{if(await ask('Reset calibration?','LDR dark/bright points go back to default values.','Reset'))cmd('/api/ldr',{cal:'reset'},'Calibration reset')};
+$('tapwin').onchange=e=>cmd('/api/settings',{tapwin:e.target.value},'Tap speed saved');
+
+/* ---------- wifi ---------- */
+Q('.eye').forEach(b=>b.onclick=()=>{const i=b.previousElementSibling;i.type=i.type==='password'?'text':'password'});
+function connect(ssid,pass){
+  if(!ssid){toast('Enter the network name',true);return}
+  if(pass&&pass.length<8){toast('Password must be at least 8 characters',true);return}
+  tryWatch=true;const n=$('cNotice');n.className='notice show amb';n.innerHTML='Connecting to <b>'+esc(ssid)+'</b>…';
+  cmd('/api/wifi/connect',{ssid,pass}).then(j=>{if(!j)tryWatch=false});
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function scan(){
+  const b=$('scanBtn');b.disabled=true;b.querySelector('span').textContent='Scanning…';
+  $('netList').innerHTML='<div class="empty"><span class="spin" style="display:inline-block;vertical-align:middle;margin-right:8px"></span>Looking for networks…</div>';
+  let tries=0;
+  const step=async first=>{
+    try{const j=await api('/api/wifi/scan'+(first?'?start=1':''));
+      if(j.state==='done'){showNets(j.list);done();return}
+      if(j.state==='idle'&&!first){if(++tries>3){api('/api/wifi/scan?start=1').catch(()=>{})}}
+    }catch(e){}
+    if(++tries>40){$('netList').innerHTML='<div class="empty">Scan failed. Try again.</div>';done();return}
+    scanT=setTimeout(()=>step(false),700);
+  };
+  const done=()=>{b.disabled=false;b.querySelector('span').textContent='Scan again'};
+  clearTimeout(scanT);step(true);
+}
+function showNets(list){
+  const box=$('netList');
+  if(!list.length){box.innerHTML='<div class="empty">No networks found</div>';return}
+  box.innerHTML=list.map((n,i)=>`<div class="net" data-ssid="${esc(n.ssid)}" data-i="${i}"><div class="hd"><span class="bars s${bars(n.rssi)}"><i></i><i></i><i></i><i></i></span><b>${esc(n.ssid)}</b><span class="lk">${n.lock?'<svg><use href="#i-lock"/></svg>':'open'}</span></div>
+  <div class="bd">${n.lock?`<div class="pw"><input class="inp" type="password" placeholder="Password" maxlength="64" autocomplete="off"><button type="button" class="eye"><svg><use href="#i-eye"/></svg></button></div>`:'<p class="sub">Open network (no password)</p>'}<button class="btn pri go">Connect</button></div></div>`).join('');
+  Q('.net',box).forEach(el=>{
+    const ssid=list[+el.dataset.i].ssid;
+    el.querySelector('.hd').onclick=()=>{const was=el.classList.contains('open');Q('#netList .net,#manualNet').forEach(x=>x.classList.remove('open'));if(!was){el.classList.add('open');const i=el.querySelector('input');if(i)setTimeout(()=>i.focus(),50)}};
+    const eye=el.querySelector('.eye');if(eye)eye.onclick=()=>{const i=eye.previousElementSibling;i.type=i.type==='password'?'text':'password'};
+    const inp=el.querySelector('input');
+    const go=()=>connect(ssid,inp?inp.value:'');
+    el.querySelector('.go').onclick=go;if(inp)inp.onkeydown=e=>{if(e.key==='Enter')go()};
+  });
+  if(S)renderWifi(S.wifi);
+}
+$('scanBtn').onclick=scan;
+$('manualNet').querySelector('.hd').onclick=()=>{const m=$('manualNet'),was=m.classList.contains('open');Q('#netList .net').forEach(x=>x.classList.remove('open'));m.classList.toggle('open',!was);if(!was)setTimeout(()=>$('mSsid').focus(),50)};
+$('mGo').onclick=()=>connect($('mSsid').value.trim(),$('mPass').value);
+$('forget').onclick=async()=>{if(await ask('Forget Wi-Fi?','The lamp will disconnect from '+(S?S.wifi.saved:'the network')+'. The hotspot keeps working.','Forget')){tryWatch=false;$('cNotice').className='notice';cmd('/api/wifi/forget',{},'Wi-Fi forgotten')}};
+$('openLocal').onclick=()=>{if(S)window.open('http://'+(S.wifi.ip||S.cfg.host+'.local'),'_blank')};
+$('apSsid').oninput=e=>e.target.dataset.dirty=1;
+$('apSave').onclick=async()=>{
+  const s=$('apSsid').value.trim(),p=$('apPass').value;
+  if(!s){toast('Hotspot name required',true);return}
+  if(p&&p.length<8){toast('Password must be at least 8 characters',true);return}
+  if(!p&&S&&!S.wifi.apOpen){toast('Enter the hotspot password (current or a new one)',true);$('apPass').focus();return}
+  if(!await ask('Save hotspot?','The lamp restarts. Reconnect your phone to "'+s+'"'+(p?' with this password.':' (open network).'),'Save & restart'))return;
+  const j=await cmd('/api/ap',{ssid:s,pass:p});if(j){toast('Saved. Restarting…');delete $('apSsid').dataset.dirty;$('apPass').value=''}
+};
+
+/* ---------- system ---------- */
+$('sBlink').onchange=e=>cmd('/api/settings',{blink:e.target.checked?1:0},'Saved');
+$('sFade').onchange=e=>cmd('/api/settings',{fade:e.target.value},'Fade speed saved');
+$('sIdle').onchange=e=>cmd('/api/settings',{idle:e.target.value},+e.target.value?'Auto sleep after '+e.target.selectedOptions[0].text:'Auto sleep disabled');
+$('hostSave').onclick=()=>cmd('/api/settings',{host:$('sHost').value},'Saved. Restart to use the new name');
+$('aIdent').onclick=()=>cmd('/api/system',{do:'identify'},'Blinking…');
+async function sleepNow(){if(await ask('Deep sleep now?','The light, LDR and Wi-Fi turn off. Touch the pad once to wake the lamp; it wakes with the light off.','Sleep')){const j=await cmd('/api/system',{do:'sleep'});if(j){sleeping=true;online=null;toast('Going to sleep…')}}}
+$('aSleep').onclick=sleepNow;$('sleepNow').onclick=sleepNow;
+$('aRestart').onclick=async()=>{if(await ask('Restart the lamp?','This page reconnects automatically in a few seconds.','Restart')){await cmd('/api/system',{do:'restart'},'Restarting…')}};
+$('aFactory').onclick=async()=>{if(await ask('Factory reset?','All settings, saved Wi-Fi and hotspot name are erased. The lamp restarts with defaults.','Erase everything')){await cmd('/api/system',{do:'factory'},'Resetting…')}};
+
+poll();
+})();
+</script>
+</body>
+</html>
+)HTML";
